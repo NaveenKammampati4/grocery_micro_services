@@ -1,0 +1,55 @@
+server:
+  port: 8761
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: eureka-server
+
+#  Eureka Server Configuration
+eureka:
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+#    ip-address: ${EUREKA_IP:127.0.0.1}
+#    non-secure-port: ${server.port}
+#    lease-renewal-interval-in-seconds: 10
+#    lease-expiration-duration-in-seconds: 30
+
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    enable-self-preservation: false
+#    eviction-interval-timer-in-ms: 10000
+#    response-cache-update-interval-ms: 1000
+#    enable-replicated-requests: false
+
+#  Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,eureka
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    info:
+      enabled: true
+  info:
+    env:
+      enabled: true
+    git:
+      mode: full
+
+#  Logging
+logging:
+  level:
+    com.netflix.eureka: INFO
+    com.grocery: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

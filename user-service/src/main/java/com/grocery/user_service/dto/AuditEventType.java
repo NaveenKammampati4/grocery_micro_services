@@ -1,0 +1,6 @@
+package com.grocery.user_service.dto;
+
+public enum AuditEventType {
+    USER_PROFILE_UPDATED, ADDRESS_ADDED, DEFAULT_ADDRESS_SET,
+    ADDRESS_DELETED, USER_DELETED, PHONE_VERIFIED, EMAIL_VERIFIED
+}
