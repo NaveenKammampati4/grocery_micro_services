@@ -9,20 +9,52 @@ spring:
     gateway:
       server:
         webflux:
+          # ------------------------
+          # Routes configuration
+          # ------------------------
           routes:
             - id: auth-service
-              uri: lb://auth-service
+              uri: lb://AUTH-SERVICE
               predicates:
                 - Path=/api/auth/**, /api/admin/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 50
+                    key-resolver: "#{@userKeyResolver}"
+
             - id: user-service
-              uri: lb://user-service
+              uri: lb://USER-SERVICE
               predicates:
                 - Path=/api/users/**
               filters:
-                - JwtAuthenticationGatewayFilter
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 50
+                    redis-rate-limiter.burstCapacity: 100
+                    key-resolver: "#{@userKeyResolver}"
+
+            - id: order-service
+              uri: lb://ORDER-SERVICE
+              predicates:
+                - Path=/api/orders/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 50
+                    redis-rate-limiter.burstCapacity: 100
+                    key-resolver: "#{@userKeyResolver}"
+
+          # ------------------------
+          # Default filters
+          # ------------------------
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
 
+          # ------------------------
+          # Global CORS configuration
+          # ------------------------
           globalcors:
             cors-configurations:
               '[/**]':
@@ -32,6 +64,9 @@ spring:
                 allow-credentials: true
                 max-age: 3600
 
+# ------------------------
+# Eureka configuration
+# ------------------------
 eureka:
   client:
     service-url:
@@ -39,21 +74,16 @@ eureka:
   instance:
     prefer-ip-address: true
 
-# Rate Limiting Key Resolver (per user)
+# ------------------------
+# Rate limiting key resolver
+# ------------------------
 gateway:
   rate-limit:
     user-key-resolver: true
 
-# Resilience4j Circuit Breaker
-resilience4j:
-  circuitbreaker:
-    instances:
-      auth-service:
-        slidingWindowSize: 100
-        minimumNumberOfCalls: 20
-        permittedNumberOfCallsInHalfOpenState: 10
-        waitDurationInOpenState: 30s
-
+# ------------------------
+# Management endpoints
+# ------------------------
 management:
   endpoints:
     web:
@@ -63,15 +93,30 @@ management:
     health:
       show-details: always
 
+# ------------------------
+# JWT settings
+# ------------------------
 app:
   jwt:
     secret: dev-secret-for-grocerymart-14052000
     expiration: 86400000
 
+# ------------------------
+# Logging configuration
+# ------------------------
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     reactor.netty: DEBUG
 
-
-
+# ------------------------
+# Optional: Resilience4j Circuit Breakers (uncomment for production)
+# ------------------------
+# resilience4j:
+#   circuitbreaker:
+#     instances:
+#       auth-service:
+#         slidingWindowSize: 100
+#         minimumNumberOfCalls: 20
+#         permittedNumberOfCallsInHalfOpenState: 10
+#         waitDurationInOpenState: 30s

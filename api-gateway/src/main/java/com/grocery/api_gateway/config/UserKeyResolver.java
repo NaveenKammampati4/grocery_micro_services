@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-@Component
+@Component("userKeyResolver")
 public class UserKeyResolver implements KeyResolver {
 
     @Override
@@ -15,6 +15,6 @@ public class UserKeyResolver implements KeyResolver {
     }
 
     private String extractUserId(ServerWebExchange exchange) {
-        return exchange.getRequest().getHeaders().getFirst("userId");
+        return exchange.getRequest().getHeaders().getFirst("X-User-Id");
     }
 }

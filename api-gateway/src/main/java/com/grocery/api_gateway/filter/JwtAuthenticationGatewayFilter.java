@@ -1,7 +1,6 @@
 package com.grocery.api_gateway.filter;
 
 import com.grocery.api_gateway.security.JwtUtil;
-import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -17,9 +16,11 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+
+// Authenticates every incoming request at gateway level.
 @Slf4j
 @Component
-@Order(-100) // Runs FIRST
+@Order(-1) // Runs FIRST
 public class JwtAuthenticationGatewayFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
@@ -52,8 +53,8 @@ public class JwtAuthenticationGatewayFilter implements GlobalFilter, Ordered {
             String userId = jwtUtil.getUserIdFromToken(token);
 //            Claims claims = jwtUtil.getClaims(token);
             ServerHttpRequest mutatedRequest = request.mutate()
-                    .header("userId", userId)
-                    .header("roles", String.join(",", jwtUtil.getRoles(token)))
+                    .header("X-User-Id", userId)
+                    .header("X-User-Roles", String.join(",", jwtUtil.getRoles(token)))
                     .build();
 
 //            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
@@ -116,6 +117,6 @@ public class JwtAuthenticationGatewayFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return 0;
+        return -1;
     }
 }
