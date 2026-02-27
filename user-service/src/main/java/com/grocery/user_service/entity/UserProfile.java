@@ -11,15 +11,15 @@ import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "users", indexes = @Index(columnList = "email"))
+@Table(name = "user_profiles", indexes = @Index(columnList = "email"))
 @Data
-@SQLDelete(sql = "UPDATE users SET deleted = true WHERE id = ?")
+@SQLDelete(sql = "UPDATE user_profiles SET deleted = true WHERE id = ?")
 @Where(clause = "deleted = false")
-public class User extends AuditEntity{
+public class UserProfile extends AuditEntity{
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "user_id")
+    private Long userId;
 
     private String name;
 
@@ -37,7 +37,7 @@ public class User extends AuditEntity{
     private boolean phoneVerified = false;
     private boolean emailVerified = false;
 
-    @OneToMany(mappedBy = "user",
+    @OneToMany(mappedBy = "userProfile",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<Address> addresses = new ArrayList<>();

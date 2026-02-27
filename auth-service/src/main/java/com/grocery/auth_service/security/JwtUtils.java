@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -45,17 +46,17 @@ public class JwtUtils {
     public String generateJwtToken(Authentication authentication){
         UserDetailsImpl userPrincipal= (UserDetailsImpl) authentication.getPrincipal();
         return Jwts.builder()
-                .subject(userPrincipal.getUsername())
-                .claim("roles",userPrincipal.getAuthorities())
+                .subject(String.valueOf(userPrincipal.getId()))
+                .claim("roles",userPrincipal.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList())
                 .issuedAt(new Date())
                 .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(key)
                 .compact();
     }
 
-    public String generateRefreshToken(String email){
+    public String generateRefreshToken(Long userId){
         return Jwts.builder()
-                .subject(email)
+                .subject(String.valueOf(userId))
                 .issuedAt(new Date())
                 .expiration(new Date((new Date()).getTime()+jwtRefreshExpirationMs))
                 .signWith(key)
@@ -105,5 +106,18 @@ public class JwtUtils {
                 .signWith(key)
                 .compact();
     }
+
+//    public String generateJwtTokenFromUser(User user){
+//
+//        return Jwts.builder()
+//                .subject(String.valueOf(user.getId()))
+//                .claim("email", user.getEmail())
+//                .claim("role", user.getRole().getAuthority())
+//                .claim("enabled", user.isEnabled())
+//                .issuedAt(new Date())
+//                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+//                .signWith(key)
+//                .compact();
+//    }
 
 }

@@ -4,6 +4,7 @@ import com.grocery.auth_service.dto.request.ForgotPasswordRequest;
 import com.grocery.auth_service.dto.request.LoginRequest;
 import com.grocery.auth_service.dto.request.RegisterRequest;
 import com.grocery.auth_service.dto.request.ResetPasswordRequest;
+import com.grocery.auth_service.dto.response.JwtResponse;
 import com.grocery.auth_service.dto.response.PasswordResetResponse;
 import com.grocery.auth_service.entity.RefreshToken;
 import com.grocery.auth_service.exception.authenticationException.UserNotFoundException;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -56,7 +58,7 @@ public class AuthController {
         logger.info("Register attempt for email: {}", request.getEmail());
         var user = authService.register(request);
         String accessToken = jwtUtils.generateJwtTokenFromUser(user);
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getEmail());
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getId());
         cookieService.setAccessTokenCookie(response, accessToken);
         cookieService.setRefreshTokenCookie(response, refreshToken.getToken());
         logger.info("User registered successfully: {}", user.getEmail());
@@ -70,11 +72,11 @@ public class AuthController {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
         var userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getUsername());
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
         cookieService.setAccessTokenCookie(response, jwt);
         cookieService.setRefreshTokenCookie(response, refreshToken.getToken());
         logger.info("User logged in successfully: {}", userDetails.getUsername());
-        return ResponseEntity.ok(Map.of("message", "Login successful"));
+        return ResponseEntity.ok(new JwtResponse(jwt, refreshToken.getToken(),userDetails.getUsername(), userDetails.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList()));
     }
 
     @PostMapping("/refresh")
@@ -86,7 +88,7 @@ public class AuthController {
             throw new RefreshTokenRevokedException("Refresh token not found");
         }
         RefreshToken newRefreshToken = refreshTokenService.verifyAndRotate(refreshToken);
-        String email = newRefreshToken.getUserEmail();
+        String email = String.valueOf(newRefreshToken.getId());
 //        String newAccessToken = jwtUtils.generateJwtTokenFromUser(email);
         String newAccessToken = jwtUtils.generateTokenFromEmail(email);
         cookieService.setAccessTokenCookie(response, newAccessToken);
@@ -104,7 +106,7 @@ public class AuthController {
                     .ifPresent(rt -> {
                         rt.setRevokedAt(LocalDateTime.now());
                         refreshTokenService.refreshTokenRepository.save(rt);
-                        logger.info("Refresh token revoked for user: {}", rt.getUserEmail());
+                        logger.info("Refresh token revoked for user: {}", rt.getUserId());
                     });
         }
 

@@ -1,12 +1,9 @@
 package com.grocery.auth_service.service;
 
 import com.grocery.auth_service.entity.RefreshToken;
-import com.grocery.auth_service.entity.User;
-import com.grocery.auth_service.exception.authenticationException.UserNotFoundException;
 import com.grocery.auth_service.exception.tokenException.JwtExpiredException;
 import com.grocery.auth_service.exception.tokenException.RefreshTokenRevokedException;
 import com.grocery.auth_service.repository.RefreshTokenRepository;
-import com.grocery.auth_service.repository.UserRepository;
 import com.grocery.auth_service.security.JwtUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,19 +18,17 @@ public class RefreshTokenService {
 
     public final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtils jwtUtils;
-    private final UserRepository userRepository;
 
-    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtUtils jwtUtils, UserRepository userRepository) {
+    public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtUtils jwtUtils) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.jwtUtils = jwtUtils;
-        this.userRepository = userRepository;
     }
 
-    public RefreshToken createRefreshToken(String email){
-        refreshTokenRepository.deleteByUserEmail(email);
+    public RefreshToken createRefreshToken(Long userId){
+        refreshTokenRepository.deleteByUserId(userId);
         RefreshToken refreshToken=new RefreshToken();
-        refreshToken.setUserEmail(email);
-        refreshToken.setToken(jwtUtils.generateRefreshToken(email));
+        refreshToken.setUserId(userId);
+        refreshToken.setToken(jwtUtils.generateRefreshToken(userId));
         refreshToken.setRevokedAt(null);
         return refreshTokenRepository.save(refreshToken);
     }
@@ -53,14 +48,14 @@ public class RefreshTokenService {
             refreshTokenRepository.save(existingToken);
             throw new RefreshTokenRevokedException("Refresh token expired");
         }
-        String email = existingToken.getUserEmail();
-        User user = userRepository.findByEmail(email).orElseThrow(() ->
-                new UserNotFoundException("User not found: " + email));
+        Long userId  = existingToken.getUserId();
         existingToken.setRevokedAt(LocalDateTime.now());
         refreshTokenRepository.save(existingToken);
+
+        String newTokenValue = jwtUtils.generateRefreshToken(userId);
         RefreshToken newRefreshToken=new RefreshToken();
         newRefreshToken.setToken(UUID.randomUUID().toString());
-        newRefreshToken.setUserEmail(user.getEmail());
+        newRefreshToken.setUserId(userId);
         newRefreshToken.setExpiryDate(LocalDateTime.now().plusDays(7));
         refreshTokenRepository.save(newRefreshToken);
         return newRefreshToken;
@@ -77,7 +72,7 @@ public class RefreshTokenService {
         return token;
     }
 
-    public void revokeAllByUserEmail(String email){
-        refreshTokenRepository.deleteByUserEmail(email);
+    public void revokeAllByUserEmail(Long userId){
+        refreshTokenRepository.deleteByUserId(userId);
     }
 }

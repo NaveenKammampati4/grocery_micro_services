@@ -10,18 +10,21 @@ import java.util.List;
 
 public class UserDetailsImpl implements UserDetails {
 
-    private String username;
+    private Long id;
     private final String password;
     private final boolean enabled;
     private final String authority;
 
     public UserDetailsImpl(User user) {
-        this.username = user.getEmail();
+        this.id = user.getId();
         this.password = user.getPassword();
         this.enabled = user.isEnabled();
         this.authority = user.getRole().getAuthority();
     }
 
+    public Long getId() {
+        return id;
+    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -35,8 +38,9 @@ public class UserDetailsImpl implements UserDetails {
 
     @Override
     public String getUsername() {
-        return username;
+        return String.valueOf(id);
     }
+
 
     @Override
     public boolean isAccountNonExpired() {

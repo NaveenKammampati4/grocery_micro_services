@@ -4,7 +4,8 @@ import com.grocery.user_service.dto.AddressDto;
 import com.grocery.user_service.dto.UserDto;
 import com.grocery.user_service.dto.request.UserUpdateRequest;
 import com.grocery.user_service.entity.Address;
-import com.grocery.user_service.entity.User;
+import com.grocery.user_service.entity.UserProfile;
+import com.grocery.user_service.event.UserCreatedEvent;
 import com.grocery.user_service.exception.AddressNotFoundException;
 import com.grocery.user_service.exception.UserNotFoundException;
 import com.grocery.user_service.mapper.UserMapper;
@@ -12,6 +13,7 @@ import com.grocery.user_service.repository.AddressRepository;
 import com.grocery.user_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,21 +33,36 @@ public class UserService {
 
     public UserDto getProfile(Long userId){
         log.debug("Fetching profile for userId: {}", userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         return userMapper.toDto(user);
+    }
+
+
+    @EventListener
+    @Transactional
+    public void handleUserCreated(UserCreatedEvent event){
+        log.info("Creating profile for new user: {}", event.getUserId());
+        if (!userRepository.existsById(event.getUserId())){
+            UserProfile profile=new UserProfile();
+            profile.setUserId(event.getUserId());
+            profile.setEmail(event.getEmail());
+            profile.setRole(UserProfile.Role.valueOf(event.getRole()));
+            profile.setEnabled(true);
+            userRepository.save(profile);
+        }
     }
 
     public UserDto updateProfile(Long userId, UserUpdateRequest request){
         log.info("Updating profile for userId: {}", userId);
         validateUpdateRequest(request);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         userMapper.updateEntity(request,user);
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
             if (userRepository.existsByEmail(request.getEmail())) {
                 throw new IllegalArgumentException("Email already in use");
             }
         }
-        User savedUser = userRepository.save(user);
+        UserProfile savedUser = userRepository.save(user);
 //        auditEventPublisher.publish(AuditEventType.USER_PROFILE_UPDATED, userId, request);
         log.debug("Profile updated successfully for userId: {}", userId);
         return userMapper.toDto(savedUser);
@@ -56,9 +73,9 @@ public class UserService {
     public AddressDto addAddress(Long userId, AddressDto dto){
         log.info("Adding address for userId: {}", userId);
         validateAddressDto(dto);
-       User user =getProfileEntity(userId);
+       UserProfile user =getProfileEntity(userId);
         Address address = userMapper.toEntity(dto);
-        address.setUser(user);
+        address.setUserProfile(user);
         if (address.isDefault()) {
             clearDefaultAddresses(user); // Ensure only one default
         }
@@ -69,7 +86,7 @@ public class UserService {
     }
 
     public AddressDto updateAddress(Long userId, Long addressId, AddressDto dto) {
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         Address address = getUserAddress(user, addressId);
 
         address.setStreet(dto.getStreet());
@@ -88,10 +105,10 @@ public class UserService {
 
     public void deleteAddress(Long userId, Long addressId){
         log.info("Deleting address {} for userId: {}", addressId, userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         Address address = getAddressEntity(addressId);
         boolean wasDefault = address.isDefault();
-        if (!address.getUser().equals(user)) {
+        if (!address.getUserProfile().equals(user)) {
             throw new IllegalArgumentException("Address does not belong to user");
         }
         addressRepository.delete(address);
@@ -104,9 +121,9 @@ public class UserService {
 
     public AddressDto setDefaultAddress(Long userId, Long addressId){
         log.info("Setting default address {} for userId: {}", addressId, userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         Address address = getAddressEntity(addressId);
-        if (!address.getUser().equals(user)) {
+        if (!address.getUserProfile().equals(user)) {
             throw new IllegalArgumentException("Address does not belong to user");
         }
         clearDefaultAddresses(user);
@@ -125,11 +142,11 @@ public class UserService {
         if (adminUserId.equals(targetUserId)) {
             throw new IllegalArgumentException("Cannot delete own account");
         }
-        User user = getProfileEntity(targetUserId);
+        UserProfile user = getProfileEntity(targetUserId);
         if (user.isDeleted()) {
             throw new IllegalStateException("User already deleted");
         }
-        if (user.getRole() == User.Role.ADMIN) {
+        if (user.getRole() == UserProfile.Role.ADMIN) {
             throw new IllegalStateException("Admin user cannot be deleted");
         }
         user.setDeleted(true);
@@ -141,7 +158,7 @@ public class UserService {
 
     public List<AddressDto> getAddresses(Long userId) {
         log.debug("Fetching addresses for userId: {}", userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         return user.getAddresses().stream()
                 .map(userMapper::toDto)
                 .collect(Collectors.toList());
@@ -149,18 +166,18 @@ public class UserService {
 
     public UserDto  verifyEmail(Long userId) {
         log.info("Verifying email for userId: {}", userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         user.setEmailVerified(true);
-        User savedUser = userRepository.save(user);
+        UserProfile savedUser = userRepository.save(user);
 //        auditEventPublisher.publish(AuditEventType.EMAIL_VERIFIED, userId);
         return userMapper.toDto(savedUser);
     }
 
     public UserDto  verifyPhone(Long userId) {
         log.info("Verifying phone for userId: {}", userId);
-        User user = getProfileEntity(userId);
+        UserProfile user = getProfileEntity(userId);
         user.setPhoneVerified(true);
-        User savedUser = userRepository.save(user);
+        UserProfile savedUser = userRepository.save(user);
 //        auditEventPublisher.publish(AuditEventType.PHONE_VERIFIED, userId);
         return userMapper.toDto(savedUser);
     }
@@ -182,7 +199,7 @@ public class UserService {
             throw new IllegalArgumentException("City is required");
         }
     }
-    private void clearDefaultAddresses(User user) {
+    private void clearDefaultAddresses(UserProfile user) {
         user.getAddresses().forEach(address -> {
             if (address.isDefault()){
                 address.setDefault(false);
@@ -191,7 +208,7 @@ public class UserService {
         });
     }
 
-    private User getProfileEntity(Long userId) {
+    private UserProfile getProfileEntity(Long userId) {
         return userRepository.findById(userId)
                 .filter(user -> !user.isDeleted())
                 .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
@@ -202,14 +219,14 @@ public class UserService {
                 .orElseThrow(()-> new AddressNotFoundException("Address not found: " + addressId));
     }
 
-    private Address getUserAddress(User user, Long addressId) {
+    private Address getUserAddress(UserProfile user, Long addressId) {
         return addressRepository.findById(addressId)
-                .filter(address -> address.getUser().getId().equals(user.getId()))
+                .filter(address -> address.getUserProfile().getUserId().equals(user.getUserId()))
                 .orElseThrow(() -> new IllegalArgumentException("Address not found or not owned by user"));
     }
 
     private void assignAnotherDefault(Long userId) {
-        List<Address> addresses = addressRepository.findByUserId(userId);
+        List<Address> addresses = addressRepository.findByUserProfile_userId(userId);
         if (!addresses.isEmpty()) {
             Address first = addresses.get(0);
             first.setDefault(true);

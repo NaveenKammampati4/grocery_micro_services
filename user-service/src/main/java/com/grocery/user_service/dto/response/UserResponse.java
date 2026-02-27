@@ -1,6 +1,6 @@
 package com.grocery.user_service.dto.response;
 
-import com.grocery.user_service.entity.User;
+import com.grocery.user_service.entity.UserProfile;
 import lombok.Data;
 
 import java.util.List;
@@ -12,6 +12,6 @@ public class UserResponse {
     private String fullName;
     private String email;
     private String phone;
-    private User.Role role;
+    private UserProfile.Role role;
     private List<AddressResponse> addresses;
 }

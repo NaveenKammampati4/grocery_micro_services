@@ -23,6 +23,6 @@ public class Address extends AuditEntity{
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
-    private User user;
+    private UserProfile userProfile;
 
 }

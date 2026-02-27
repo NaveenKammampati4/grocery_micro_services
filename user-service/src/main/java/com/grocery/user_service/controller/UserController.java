@@ -3,7 +3,9 @@ package com.grocery.user_service.controller;
 import com.grocery.user_service.config.UserPrincipal;
 import com.grocery.user_service.dto.AddressDto;
 import com.grocery.user_service.dto.UserDto;
+import com.grocery.user_service.dto.request.InitProfileRequest;
 import com.grocery.user_service.dto.request.UserUpdateRequest;
+import com.grocery.user_service.event.UserCreatedEvent;
 import com.grocery.user_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -48,6 +50,11 @@ public class UserController {
 //        return ResponseEntity.ok(userService.getProfile(userId));
 //    }
 
+    @PostMapping("/api/users/{userId}/init-profile")
+    public ResponseEntity<Void> initProfile(@PathVariable Long userId, @RequestBody InitProfileRequest request){
+        userService.handleUserCreated(new UserCreatedEvent(userId, request.getEmail()));
+        return ResponseEntity.ok().build();
+    }
 
     @PutMapping("/profile")
     @Operation(summary = "Update current user profile")

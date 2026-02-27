@@ -1,5 +1,6 @@
 package com.grocery.auth_service.service;
 
+import com.grocery.auth_service.client.UserServiceClient;
 import com.grocery.auth_service.dto.request.RegisterRequest;
 import com.grocery.auth_service.entity.User;
 import com.grocery.auth_service.exception.authenticationException.PasswordMismatchException;
@@ -25,13 +26,15 @@ public class AuthService {
 
     public final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserServiceClient userServiceClient;
 
     @Value("${app.security.default.registration.role:CUSTOMER}")
     private String defaultRegistrationRole;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserServiceClient userServiceClient) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userServiceClient = userServiceClient;
     }
 
     public User register(RegisterRequest request){
