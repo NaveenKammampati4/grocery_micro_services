@@ -46,7 +46,7 @@ public class UserService {
             UserProfile profile=new UserProfile();
             profile.setUserId(event.getUserId());
             profile.setEmail(event.getEmail());
-            profile.setRole(UserProfile.Role.valueOf(event.getRole()));
+            profile.setRole(UserProfile.Role.CUSTOMER);
             profile.setEnabled(true);
             userRepository.save(profile);
         }

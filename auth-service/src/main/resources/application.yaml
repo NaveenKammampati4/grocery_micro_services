@@ -34,6 +34,18 @@ spring:
           auth: true
           starttls:
             enable: true
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        auto.create.topics.enable: true  # Broker-level, but client can override
+        request.timeout.ms: 30000
+        metadata.max.idle: 300000
+    admin:
+      properties:
+        auto.create: true  # Spring Boot 3+ auto-creates on startup
+    bootstrap-servers: localhost:9092
 
 eureka:
   client:

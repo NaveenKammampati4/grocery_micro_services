@@ -7,6 +7,13 @@ import com.grocery.auth_service.dto.response.UserResponse;
 import com.grocery.auth_service.entity.User;
 import com.grocery.auth_service.repository.UserRepository;
 import com.grocery.auth_service.service.AdminUserService;
+import com.grocery.auth_service.swaggerapi.ApiStatusCodes;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Tag(name = "Admin Management", description = "Administrative operations for managing users, roles, and security.")
 @RestController
 @Slf4j
 @RequestMapping("/api/admin")
@@ -35,6 +43,14 @@ public class AdminController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Create admin user",
+            description = "Creates a new ADMIN account. Only accessible by ADMIN users.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Admin created successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/create-admin")
     public ResponseEntity<?> createAdmin(@RequestBody RegisterRequest request){
         User user = adminUserService.createAdmin(request);
@@ -44,6 +60,14 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message","Admin Created Successfully with Id: "+user.getId()));
     }
 
+    @Operation(summary = "Create delivery partner",
+            description = "Creates a new DELIVERY_PARTNER account.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Delivery partner created successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/create-delivery-partner")
     public ResponseEntity<?> createDeliveryPartner(@RequestBody RegisterRequest request){
         User user = adminUserService.createDeliveryPartner(request);
@@ -53,12 +77,30 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message","Delivery partner created successfully","userId", user.getId()));
     }
 
+    @Operation(summary = "Get paginated users",
+            description = "Returns paginated list of users with optional filtering by search, role, and status.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Users retrieved successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid query parameters"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @GetMapping("/users")
     public ResponseEntity<?> getUsers(
+            @Parameter(description = "Page number (0-based index)",example = "0")
             @RequestParam(defaultValue = "0") int page,
+
+            @Parameter(description = "Page Size",example = "20")
             @RequestParam(defaultValue = "20") int size,
+
+            @Parameter(description = "Search by name or email")
             @RequestParam(required = false) String search,
+
+            @Parameter(description = "Filter by user role",schema = @Schema(implementation = User.Role.class))
             @RequestParam(required = false) User.Role role,
+
+            @Parameter(description = "Filter by user status",
+                    schema = @Schema(implementation = User.UserStatus.class))
             @RequestParam(required = false)User.UserStatus status){
         PageRequest pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<User> users = userRepository.findAllWithFilters(search, role, status, pageable);
@@ -72,12 +114,29 @@ public class AdminController {
         ));
     }
 
+
+    @Operation(summary = "Get user by ID",
+            description = "Returns detailed information for a specific user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "User retrieved successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.NOT_FOUND, description = "User not found"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @GetMapping("/users/{userId}")
     public ResponseEntity<?> getUser(@PathVariable Long userId){
         User user = adminUserService.findByUserId(userId);
         return ResponseEntity.ok(mapToUserResponse(user));
     }
 
+    @Operation(summary = "Bulk update user status",
+            description = "Updates status and enabled flag for multiple users at once.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Bulk update successful"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     // Bulk user status update
     @PatchMapping("/users/bulk-status")
     public ResponseEntity<?> bulkUpdateStatus(@Valid @RequestBody BulkStatusUpdateRequest request) {
@@ -93,6 +152,15 @@ public class AdminController {
         ));
     }
 
+
+    @Operation(summary = "Get user security information",
+            description = "Returns security-related information such as failed login attempts and token status.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Security info retrieved"),
+            @ApiResponse(responseCode = ApiStatusCodes.NOT_FOUND, description = "User not found"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @GetMapping("/users/{userId}/security")
     public ResponseEntity<Map<String, Object>> getUserSecurityInfo(
             @PathVariable Long userId) {
@@ -101,6 +169,15 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("Security info retrieved", securityInfo));
     }
 
+    @Operation(summary = "Update user status",
+            description = "Updates status and enabled flag for a specific user.")
+    @ApiResponses({
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "User status updated successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.NOT_FOUND, description = "User not found"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PatchMapping("/users/{userId}/status")
     public ResponseEntity<UserResponse> updateUserStatus(
             @PathVariable Long userId,

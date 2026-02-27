@@ -1,14 +1,17 @@
 package com.grocery.auth_service.service;
 
 import com.grocery.auth_service.client.UserServiceClient;
+import com.grocery.auth_service.dto.request.InitProfileRequest;
 import com.grocery.auth_service.dto.request.RegisterRequest;
 import com.grocery.auth_service.entity.User;
+import com.grocery.auth_service.event.UserCreatedEvent;
 import com.grocery.auth_service.exception.authenticationException.PasswordMismatchException;
 import com.grocery.auth_service.exception.authenticationException.UserNotFoundException;
 import com.grocery.auth_service.repository.UserRepository;
 import com.grocery.auth_service.security.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,7 +21,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 @Service
 @Slf4j
@@ -27,23 +33,25 @@ public class AuthService {
     public final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserServiceClient userServiceClient;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Value("${app.security.default.registration.role:CUSTOMER}")
     private String defaultRegistrationRole;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserServiceClient userServiceClient) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserServiceClient userServiceClient, KafkaTemplate<String, Object> kafkaTemplate) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.userServiceClient = userServiceClient;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     public User register(RegisterRequest request){
-        System.out.println("Register request: " + request);
+        log.info("Register request received for email: {}", request.getEmail());
+        validatePassword(request.getPassword());
         if (userRepository.existsByEmail(request.getEmail())){
             log.warn("Registration attempt with existing email: {}", request.getEmail());
             throw new RuntimeException("Email already exists");
         }
-        validatePassword(request.getPassword());
         User user=User.builder()
                 .name(request.getName().trim())
                 .email(request.getEmail().toLowerCase().trim())
@@ -52,13 +60,28 @@ public class AuthService {
                 .status(User.UserStatus.ACTIVE)
                 .enabled(true)
                 .build();
+        User savedUser = userRepository.save(user);
 
-//        User savedUser = userRepository.save(user);
-//
+        userServiceClient.initProfile(savedUser.getId(), new InitProfileRequest(savedUser.getEmail()));
+
+//        sendUserEventAsync(savedUser.getId(),savedUser.getEmail());
 //        // Send welcome email asynchronously
 //        CompletableFuture.runAsync(() ->
 //                emailService.sendWelcomeEmail(savedUser));
-        return userRepository.save(user);
+        return savedUser;
+    }
+
+    private void sendUserEventAsync(Long userId, String email){
+        CompletableFuture.runAsync(()->{
+            try {
+                kafkaTemplate.send("user-events", new UserCreatedEvent(userId, email));
+                log.debug("UserCreatedEvent sent for userId: {}", userId);
+            } catch (Exception e) {
+                log.warn("Failed to send UserCreatedEvent for userId {} (profile already created via sync): {}",
+                        userId, e.getMessage());
+            }
+        }, Executors.newSingleThreadExecutor());
+
     }
 
     private User.Role resolveUserRole(RegisterRequest request) {

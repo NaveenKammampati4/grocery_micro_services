@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Health checks (Kubernetes, monitoring)
                         .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/api/users/*/init-profile").permitAll()
                         // Admin endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Everything else requires authentication

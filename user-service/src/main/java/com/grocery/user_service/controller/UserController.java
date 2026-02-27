@@ -50,7 +50,7 @@ public class UserController {
 //        return ResponseEntity.ok(userService.getProfile(userId));
 //    }
 
-    @PostMapping("/api/users/{userId}/init-profile")
+    @PostMapping("/{userId}/init-profile")
     public ResponseEntity<Void> initProfile(@PathVariable Long userId, @RequestBody InitProfileRequest request){
         userService.handleUserCreated(new UserCreatedEvent(userId, request.getEmail()));
         return ResponseEntity.ok().build();

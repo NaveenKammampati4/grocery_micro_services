@@ -6,7 +6,7 @@ import java.util.List;
 
 @Data
 public class UserDto {
-    private Long id;
+    private Long userId;
     private String name, email, phone, avatarUrl;
     private boolean phoneVerified, emailVerified;
     private List<AddressDto> addresses;

@@ -14,7 +14,13 @@ import com.grocery.auth_service.security.UserDetailsImpl;
 import com.grocery.auth_service.service.AuthService;
 import com.grocery.auth_service.service.PasswordResetTokenService;
 import com.grocery.auth_service.service.RefreshTokenService;
+import com.grocery.auth_service.swaggerapi.ApiStatusCodes;
 import com.grocery.auth_service.util.CookieService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -32,6 +38,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+@Tag(name = "Authentication", description = "Authentication and user management endpoints")
 @RequestMapping("/api/auth")
 @RestController
 public class AuthController {
@@ -53,8 +60,15 @@ public class AuthController {
         this.passwordResetTokenService = passwordResetTokenService;
     }
 
+    @Operation(summary = "Register new user",description = "Creates a new user account and sets authentication cookies.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "User Registration successful."),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload"),
+            @ApiResponse(responseCode = ApiStatusCodes.CONFLICT, description = "Email already exists"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody RegisterRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
         logger.info("Register attempt for email: {}", request.getEmail());
         var user = authService.register(request);
         String accessToken = jwtUtils.generateJwtTokenFromUser(user);
@@ -65,6 +79,13 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Registration successful", "userId", user.getId()));
     }
 
+    @Operation(summary = "Login", description = "Authenticates user credentials and issues JWT + refresh token cookies.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Login successful"),
+            @ApiResponse(responseCode = ApiStatusCodes.UNAUTHORIZED, description = "Invalid credentials"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         logger.info("Login attempt for email: {}", request.getEmail());
@@ -79,6 +100,12 @@ public class AuthController {
         return ResponseEntity.ok(new JwtResponse(jwt, refreshToken.getToken(),userDetails.getUsername(), userDetails.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList()));
     }
 
+    @Operation(summary = "Refresh access token", description = "Rotates refresh token and issues new access token.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Token refreshed successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.UNAUTHORIZED, description = "Invalid or missing refresh token"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response){
         logger.info("Token refresh attempt");
@@ -97,6 +124,12 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Token refreshed successfully"));
     }
 
+
+    @Operation(summary = "Logout User", description = "Revokes refresh token and clears authentication cookies.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Logout successful"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
         logger.info("Logout attempt for refresh token");
@@ -117,6 +150,13 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message","Logout successful"));
     }
 
+    @Operation(summary = "Delete user", description = "Deletes user account. Requires ADMIN role or ownership of account.", security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "User deleted successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.NOT_FOUND, description = "User not found"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @DeleteMapping("/users/{userId}")
     @PreAuthorize("hasRole('ADMIN') or #userId.toString() == authentication.name")
     public ResponseEntity<?> deleteUser(@PathVariable @Positive Long userId, Authentication authentication){
@@ -133,6 +173,14 @@ public class AuthController {
         }
     }
 
+
+    @Operation(summary = "Activate user", description = "Activates a deactivated user account (ADMIN only).",security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "User activated successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.NOT_FOUND, description = "User not found"),
+            @ApiResponse(responseCode = ApiStatusCodes.FORBIDDEN, description = "Access denied"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PatchMapping("/users/{userId}/activate")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> activateUser(@PathVariable @Positive Long userId){
@@ -149,6 +197,11 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Forgot password", description = "Generates password reset token and sends reset email if account exists.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Reset email sent (if account exists)"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid request payload")
+    })
     @PostMapping("/forgot-password")
     public ResponseEntity<PasswordResetResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request){
         logger.info("Forgot password request for: {}", request.getEmail());
@@ -169,6 +222,14 @@ public class AuthController {
         }
     }
 
+
+    @Operation(summary = "Reset password",
+            description = "Resets user password using valid reset token.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = ApiStatusCodes.OK, description = "Password reset successfully"),
+            @ApiResponse(responseCode = ApiStatusCodes.BAD_REQUEST, description = "Invalid or expired reset token"),
+            @ApiResponse(responseCode = ApiStatusCodes.INTERNAL_SERVER_ERROR, description = "Unexpected server error")
+    })
     @PostMapping("/reset-password")
     public ResponseEntity<PasswordResetResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request){
         try {
