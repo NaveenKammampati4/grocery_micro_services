@@ -1,8 +1,0 @@
-spring:
-  cloud:
-    service-registry:
-      auto-registration:
-        enabled: false
-eureka:
-  client:
-    enabled: false
