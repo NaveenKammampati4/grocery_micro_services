@@ -1,7 +1,6 @@
 package com.grocery.auth_service.service;
 
 import com.grocery.auth_service.entity.RefreshToken;
-import com.grocery.auth_service.exception.tokenException.JwtExpiredException;
 import com.grocery.auth_service.exception.tokenException.RefreshTokenRevokedException;
 import com.grocery.auth_service.repository.RefreshTokenRepository;
 import com.grocery.auth_service.security.JwtUtils;
@@ -10,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @Transactional
@@ -52,27 +50,14 @@ public class RefreshTokenService {
         existingToken.setRevokedAt(LocalDateTime.now());
         refreshTokenRepository.save(existingToken);
 
-        String newTokenValue = jwtUtils.generateRefreshToken(userId);
+
+        // create new token consistently
         RefreshToken newRefreshToken=new RefreshToken();
-        newRefreshToken.setToken(UUID.randomUUID().toString());
+        newRefreshToken.setToken(jwtUtils.generateRefreshToken(userId));
         newRefreshToken.setUserId(userId);
         newRefreshToken.setExpiryDate(LocalDateTime.now().plusDays(7));
+        newRefreshToken.setRevokedAt(null);
         refreshTokenRepository.save(newRefreshToken);
         return newRefreshToken;
-    }
-
-    public RefreshToken verifyExpiration(RefreshToken token){
-        if (token.isRevoked()){
-            throw new RefreshTokenRevokedException("Refresh token revoked");
-        }
-        if (token.isExpired()){
-            refreshTokenRepository.delete(token);
-            throw new JwtExpiredException("Refresh token expired");
-        }
-        return token;
-    }
-
-    public void revokeAllByUserEmail(Long userId){
-        refreshTokenRepository.deleteByUserId(userId);
     }
 }

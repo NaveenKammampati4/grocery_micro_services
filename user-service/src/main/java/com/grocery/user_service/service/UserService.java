@@ -228,7 +228,7 @@ public class UserService {
     private void assignAnotherDefault(Long userId) {
         List<Address> addresses = addressRepository.findByUserProfile_userId(userId);
         if (!addresses.isEmpty()) {
-            Address first = addresses.get(0);
+            Address first = addresses.getFirst();
             first.setDefault(true);
             addressRepository.save(first);
         }

@@ -27,6 +27,7 @@ public class AdminUserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional
     public User createAdmin(RegisterRequest request){
         return createUser(request, User.Role.ADMIN);
     }
@@ -79,6 +80,7 @@ public class AdminUserService {
                 .filter(user -> user.getLockTime()!=null && user.getLockTime().isAfter(LocalDateTime.now())).isPresent();
     }
 
+    @Transactional
     public User updateUserStatus(Long userId,User.UserStatus status, boolean enabled){
         User user = findByUserId(userId);
         user.setStatus(status);

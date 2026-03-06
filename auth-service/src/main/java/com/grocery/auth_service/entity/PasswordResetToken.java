@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Data
 @Table(name = "password_reset_tokens",
         indexes = {
-                @Index(name = "idx_reset_token", columnList = "token", unique = true),
+                @Index(name = "idx_reset_token", columnList = "token_hash", unique = true),
                 @Index(name = "idx_reset_user", columnList = "user_id"),
                 @Index(name = "idx_reset_expiry", columnList = "expiry_date")
         })
@@ -26,7 +26,7 @@ public class PasswordResetToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(name = "token_hash", nullable = false, unique = true, length = 255)
     private String tokenHash;
 
     @ManyToOne(fetch = FetchType.LAZY)

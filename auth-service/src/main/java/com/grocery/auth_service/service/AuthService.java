@@ -4,12 +4,13 @@ import com.grocery.auth_service.client.UserServiceClient;
 import com.grocery.auth_service.dto.request.InitProfileRequest;
 import com.grocery.auth_service.dto.request.RegisterRequest;
 import com.grocery.auth_service.entity.User;
-import com.grocery.auth_service.event.UserCreatedEvent;
 import com.grocery.auth_service.exception.authenticationException.PasswordMismatchException;
 import com.grocery.auth_service.exception.authenticationException.UserNotFoundException;
 import com.grocery.auth_service.repository.UserRepository;
 import com.grocery.auth_service.security.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,19 +22,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 
 @Service
-@Slf4j
 public class AuthService {
 
     public final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserServiceClient userServiceClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    private static final Logger log=LoggerFactory.getLogger(AuthService.class);
 
     @Value("${app.security.default.registration.role:CUSTOMER}")
     private String defaultRegistrationRole;
@@ -47,6 +46,7 @@ public class AuthService {
 
     public User register(RegisterRequest request){
         log.info("Register request received for email: {}", request.getEmail());
+        validateRegistrationRequest(request);
         validatePassword(request.getPassword());
         if (userRepository.existsByEmail(request.getEmail())){
             log.warn("Registration attempt with existing email: {}", request.getEmail());
@@ -56,7 +56,8 @@ public class AuthService {
                 .name(request.getName().trim())
                 .email(request.getEmail().toLowerCase().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(resolveUserRole(request))
+//                .role(resolveUserRole(request))
+                .role(User.Role.CUSTOMER)
                 .status(User.UserStatus.ACTIVE)
                 .enabled(true)
                 .build();
@@ -71,39 +72,40 @@ public class AuthService {
         return savedUser;
     }
 
-    private void sendUserEventAsync(Long userId, String email){
-        CompletableFuture.runAsync(()->{
-            try {
-                kafkaTemplate.send("user-events", new UserCreatedEvent(userId, email));
-                log.debug("UserCreatedEvent sent for userId: {}", userId);
-            } catch (Exception e) {
-                log.warn("Failed to send UserCreatedEvent for userId {} (profile already created via sync): {}",
-                        userId, e.getMessage());
-            }
-        }, Executors.newSingleThreadExecutor());
+//    private void sendUserEventAsync(Long userId, String email){
+//        CompletableFuture.runAsync(()->{
+//            try {
+//                kafkaTemplate.send("user-events", new UserCreatedEvent(userId, email));
+//                log.debug("UserCreatedEvent sent for userId: {}", userId);
+//            } catch (Exception e) {
+//                log.warn("Failed to send UserCreatedEvent for userId {} (profile already created via sync): {}",
+//                        userId, e.getMessage());
+//            }
+//        }, Executors.newSingleThreadExecutor());
+//
+//    }
 
-    }
-
-    private User.Role resolveUserRole(RegisterRequest request) {
-        return getDefaultRegistrationRole();
-    }
-
-    private User.Role getDefaultRegistrationRole() {
-        try{
-            return User.Role.valueOf(defaultRegistrationRole);
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid default role '{}', falling back to CUSTOMER", defaultRegistrationRole);
-            return User.Role.CUSTOMER;
-        }
-    }
+//    private User.Role resolveUserRole(RegisterRequest request) {
+//        return getDefaultRegistrationRole();
+//    }
+//
+//    private User.Role getDefaultRegistrationRole() {
+//        try{
+////            return User.Role.valueOf(defaultRegistrationRole);
+//            return User.Role.CUSTOMER;
+//        } catch (IllegalArgumentException e) {
+//            log.warn("Invalid default role '{}', falling back to CUSTOMER", defaultRegistrationRole);
+//            return User.Role.CUSTOMER;
+//        }
+//    }
 
     private void validateRegistrationRequest(RegisterRequest request) {
         if (request.getName() == null || request.getName().trim().length() < 2) {
             throw new PasswordMismatchException("Name must be at least 2 characters");
         }
-//        if (request.getEmail() == null || !isValidEmail(request.getEmail())) {
-//            throw new PasswordMismatchException("Valid email required");
-//        }
+        if (request.getEmail() == null) {
+            throw new PasswordMismatchException("Valid email required");
+        }
         if (request.getPassword() == null || request.getPassword().length() < 8) {
             throw new PasswordMismatchException("Password must be at least 8 characters");
         }
@@ -142,6 +144,14 @@ public class AuthService {
     @Transactional
     public void incrementFailedLogin(String email){
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        // Only increment for active & enabled users
+        if (user.getStatus() != User.UserStatus.ACTIVE || !user.isEnabled()) {
+            log.info("User {} is non-active or disabled. Skipping failed login increment.", email);
+            // Non-active users should not be locked or have failed attempts incremented
+            return;
+        }
+
         if (user.isActive()){
             int attempts = user.getFailedLoginAttempts() + 1;
             user.setFailedLoginAttempts(attempts);
@@ -166,9 +176,6 @@ public class AuthService {
     private void validateDeleteOperation(User user, String operator) {
         if (isLastAdmin(user.getId())) {
             throw new RuntimeException("Cannot delete the last admin user");
-        }
-        if (operator.equals(user.getEmail())) {
-            log.warn("Self-delete operation by user: {}", operator);
         }
     }
 

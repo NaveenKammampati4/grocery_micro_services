@@ -7,9 +7,11 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Builder
+@NoArgsConstructor
 public class RegisterRequest {
 
     @NotBlank(message = "Name is required")
@@ -29,9 +31,10 @@ public class RegisterRequest {
 
     private User.Role requestedRole;
 
-    public RegisterRequest(String name, String email, String password) {
+    public RegisterRequest(String name, String email, String password, User.Role requestedRole) {
         this.name = name;
         this.email = email;
         this.password = password;
+        this.requestedRole = requestedRole;
     }
 }
